@@ -1,4 +1,4 @@
-use poni_core::update::{parse_file, parse_payload};
+use poni_core::update::{newer, parse_file, parse_payload};
 use std::fs;
 use std::path::Path;
 
@@ -16,13 +16,16 @@ fn update_feed_file_is_valid_and_trusted() {
     assert!(!release.version.is_empty(), "version must not be empty");
     assert!(!release.notes.is_empty(), "notes must not be empty");
     assert!(release.windows.is_some(), "windows download must be present");
-    assert!(release.mac.is_some(), "mac download must be present");
 
-    // Guard: site/latest.json MUST match the current workspace version so that
-    // releases never go out with an outdated update feed.
-    assert_eq!(
-        release.version,
-        env!("CARGO_PKG_VERSION"),
-        "site/latest.json version must match Cargo package version"
+    // The feed may lag behind the code while a release is still being built,
+    // but it must never run ahead of it: that is how 1.3.1 was announced while
+    // no installer existed. A feed that describes this very version is what
+    // people are downloading, so it needs every platform's file.
+    assert!(
+        !newer(&release.version, env!("CARGO_PKG_VERSION")),
+        "site/latest.json must never name a version newer than the crate"
     );
+    if release.version == env!("CARGO_PKG_VERSION") {
+        assert!(release.mac.is_some(), "mac download must be present");
+    }
 }
